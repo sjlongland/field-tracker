@@ -44,6 +44,11 @@ class Database(object):
             for etype in _ALL_ENTITY_TYPES
         )
 
+        # Create deletion store
+        self._deletions = dict(
+            (etype._ENTITY_TABLE, {}) for etype in _ALL_ENTITY_TYPES
+        )
+
     def init(self):
         """
         Initialise a new database
@@ -88,6 +93,14 @@ class Database(object):
         fields[etype._ID_FIELD] = None
 
         return etype(self, **fields)
+
+    def get_deletions(self, etype):
+        """
+        Get the deletions pending of the given type.
+        """
+        return iter(
+            list(self._deletions.get(etype._ENTITY_TABLE, {}).values())
+        )
 
     def commit(self, statements):
         """
@@ -160,3 +173,12 @@ class Database(object):
 
             log.debug("Returning %r", decoded)
             yield decoded
+
+    def _mark_delete(self, entity, status):
+        log = self._log.getChild(entity._ENTITY_TABLE)
+        if status:
+            self._deletions[entity._ENTITY_TABLE][entity.entity_id] = entity
+            log.debug("Added to delete queue: %r", entity)
+        else:
+            self._deletions[entity._ENTITY_TABLE].pop(entity.entity_id, None)
+            log.debug("Removed from delete queue: %r", entity)
