@@ -759,15 +759,15 @@ class _StageEditDialogue(object):
         event = self._div["event_id"]
 
         # Refresh direct references if known
+        if event.entity_id is not None:
+            for loc in db.fetch(Location, {"event_id": event.entity_id}):
+                self._log.debug("Fetched location from db: %r", loc)
+                self._locations[loc.ref] = loc
+
         if stage.entity_id is not None:
             for cpt in db.fetch(Checkpoint, {"stg_id": stage.entity_id}):
                 self._log.debug("Fetched checkpoint from db: %r", cpt)
                 self._checkpoints[cpt.ref] = cpt
-
-        if event.entity_id is not None:
-            for loc in db.fetch(Location, {"event_id": event.entity_id}):
-                self._log.debug("Fetched location from db: %r", loc)
-                self._checkpoints[loc.ref] = loc
 
         # Amend to-be-committed entities
         for cpt in stage.get_references(Checkpoint):
