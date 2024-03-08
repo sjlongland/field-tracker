@@ -20,6 +20,12 @@ class LogStatus(Enum):
     # Partial log entry, needs completion
     Incomplete = "INCOMPLETE"
 
+    # Log entry has invalid data
+    Invalid = "INVALID"
+
+    # Log entry is a duplicate
+    Duplicate = "DUPLICATE"
+
     # Newly entered log entry, not yet sent to base
     Logged = "LOGGED"
 
