@@ -12,13 +12,24 @@ import tkinter
 from tkinter import ttk, messagebox
 from .components.buttonbox import ButtonBox
 from .components.table import Table
+from .components.enumlist import EnumList
+from .components.objectlist import ObjectList
 
 # Time-zone data
 import zoneinfo
 
 # Event type data and model
-from .model.eventtype import EVENT_TYPES
-from .model.db import Division, Event, Location, Stage, Competitor, Checkpoint
+from .model import (
+    Division,
+    Event,
+    Location,
+    Stage,
+    Competitor,
+    CompetitorState,
+    Checkpoint,
+    EventType,
+    EVENT_TYPES,
+)
 
 
 class _LocationTable(Table):
@@ -93,6 +104,7 @@ class _LocationEditDialogue(object):
         tz_lbl.grid(column=0, row=1)
         self._tz_var = tkinter.StringVar(value=location["loc_tz"])
         self._tz_lst = ttk.Combobox(self._window, textvariable=self._tz_var)
+        self._tz_lst.state(["readonly"])
         self._tz_lst["values"] = (
             "EVENT",
             "LOCAL",
@@ -470,16 +482,67 @@ class _DivisionEditDialogue(object):
             self._stg_tbl.append(stg)
 
     def _add_competitor(self):
-        pass
+        num = 1
+        try:
+            num += max(cmp["cmp_num"] for cmp in self._competitors.values())
+        except ValueError:
+            pass
+
+        cmp = self._db.create(Competitor, div_id=self._division, cmp_num=num)
+        result = _CompetitorEditDialogue.show(
+            parent=self._window,
+            title="New Competitor",
+            competitor=cmp,
+        )
+        if result:
+            self._competitors[cmp.ref] = cmp
+        else:
+            cmp.delete = True
+
+        self._refresh_competitors()
 
     def _edit_competitor(self):
-        pass
+        idx = self._cmp_tbl.selection
+        cmp = self._cmp_tbl[idx]
+        assert isinstance(cmp, Competitor)
+
+        result = _CompetitorEditDialogue.show(
+            parent=self._window,
+            title="Edit Competitor: %d. %s"
+            % (cmp["cmp_num"], cmp.uservalue["cmp_name"]),
+            competitor=cmp,
+        )
+
+        if result:
+            self._competitors[cmp.ref] = cmp
+
+        self._refresh_competitors()
 
     def _delete_competitor(self):
-        pass
+        idx = self._cmp_tbl.selection
+        cmp = self._cmp_tbl[idx]
+        assert isinstance(cmp, Competitor)
+
+        self._competitors.pop(cmp.ref, None)
+        del self._cmp_tbl[idx]
+
+        self._refresh_competitors()
 
     def _refresh_competitors(self):
-        pass
+        stages = list(self._competitors.values())
+        stages.sort(key=lambda cmp: cmp["cmp_num"])
+
+        # Drop excess elements
+        while len(self._cmp_tbl) > len(stages):
+            del self._cmp_tbl[len(stages) - 1]
+
+        # Update existing rows
+        for idx, cmp in enumerate(stages[0 : len(self._cmp_tbl)]):
+            self._cmp_tbl[idx] = cmp
+
+        # Add new rows
+        for cmp in stages[len(self._cmp_tbl) :]:
+            self._cmp_tbl.append(cmp)
 
 
 class _StageTable(Table):
@@ -502,20 +565,135 @@ class _CompetitorTable(Table):
             parent,
             columns=(
                 ("cmp_name", "Name"),
-                ("cmp_status", "Status"),
+                ("cmp_state", "Status"),
             ),
             **kwargs
         )
 
     def _getobject(self, competitor):
         return (
-            "%d. %s" % (competitor["cmp_num"], competitor["cmp_name"]),
+            "%s. %s"
+            % (
+                competitor.uservalue["cmp_num"],
+                competitor.uservalue["cmp_name"],
+            )
+            if competitor["cmp_name"]
+            else competitor.uservalue["cmp_num"],
             (
-                competitor["cmp_name"],
-                competitor["cmp_status"],
+                competitor.uservalue["cmp_name"],
+                competitor.uservalue["cmp_state"],
             ),
             competitor,
         )
+
+
+# .------------------------------- New Competitor --------------------------.
+# |       .-----.      .--------------------------------------------------. |
+# | Nbr.  |     | Name |                                                  | |
+# |       '-----'      '--------------------------------------------------' |
+# |       .-----------------------------------------------------------.---. |
+# | State |                                                           | v | |
+# |       '-----------------------------------------------------------'---' |
+# | .-----------------------------------. .-------------------------------. |
+# | |             COMMIT                | |              CLOSE            | |
+# | '-----------------------------------' '-------------------------------' |
+# '-------------------------------------------------------------------------'
+class _CompetitorEditDialogue(object):
+    @classmethod
+    def show(cls, parent, competitor, **kwargs):
+        tl = tkinter.Toplevel(parent)
+        dlg = cls(parent=tl, competitor=competitor, **kwargs)
+        tl.transient(parent)  # dialog window is related to main
+        tl.wait_visibility()  # can't grab until window appears, so we wait
+        tl.grab_set()  # ensure all input goes to our window
+        tl.wait_window()  # block until window is destroyed
+
+        return dlg._committed
+
+    def __init__(
+        self,
+        title,
+        competitor,
+        commit_label="COMMIT",
+        close_label="CLOSE",
+        parent=None,
+    ):
+        if parent is None:
+            parent = tkinter.Tk()
+
+        self._competitor = competitor
+        self._log = competitor._log.getChild("ui")
+        self._committed = None
+        self._parent = parent
+        self._parent.protocol("WM_DELETE_WINDOW", self._dismiss)
+
+        self._window = ttk.Frame(self._parent)
+
+        num_lbl = ttk.Label(self._window, text="Number")
+        num_lbl.grid(column=0, row=0)
+        self._num_var = tkinter.StringVar(
+            value=competitor.uservalue["cmp_num"]
+        )
+        self._num_ent = ttk.Entry(self._window, textvariable=self._num_var)
+        self._num_ent.grid(column=1, row=0, sticky=(tkinter.W, tkinter.E))
+
+        name_lbl = ttk.Label(self._window, text="Name")
+        name_lbl.grid(column=2, row=0)
+        self._name_var = tkinter.StringVar(
+            value=competitor.uservalue["cmp_name"]
+        )
+        self._name_ent = ttk.Entry(self._window, textvariable=self._name_var)
+        self._name_ent.grid(column=3, row=0, sticky=(tkinter.W, tkinter.E))
+
+        state_lbl = ttk.Label(self._window, text="State")
+        state_lbl.grid(column=0, row=1)
+        self._state_var = tkinter.StringVar(
+            value=competitor.uservalue["cmp_state"]
+        )
+        self._state_lst = EnumList(self._window, enum=CompetitorState)
+        self._state_lst.grid(
+            column=1,
+            row=1,
+            columnspan=3,
+            rowspan=1,
+            sticky=(tkinter.W, tkinter.E),
+        )
+
+        buttons = ButtonBox(parent=self._window)
+        buttons.add_button(commit_label, command=self._commit)
+        buttons.add_button(close_label, command=self._dismiss)
+        buttons.grid(
+            column=0,
+            row=2,
+            columnspan=4,
+            rowspan=1,
+            sticky=(tkinter.E, tkinter.W),
+        )
+        self._window.columnconfigure(1, weight=1)
+        self._window.columnconfigure(3, weight=1)
+        self._window.grid()
+        self._parent.title(title)
+
+    def _commit(self):
+        try:
+            self._competitor.uservalue["cmp_num"] = self._num_var.get()
+            self._competitor.uservalue["cmp_name"] = self._name_var.get()
+            self._competitor.uservalue["cmp_state"] = self._state_var.get()
+        except ValueError as e:
+            messagebox.showerror(message=str(e))
+            return
+
+        self._committed = True
+        self._close()
+
+    def _dismiss(self):
+        self._competitor.revert()
+        self._committed = False
+        self._close()
+
+    def _close(self):
+        self._parent.grab_release()
+        self._parent.destroy()
 
 
 # .------------------------------- New Stage -------------------------------.
@@ -576,6 +754,7 @@ class _StageEditDialogue(object):
         self._log = stage._log.getChild("ui")
         self._checkpoints = {}
         self._locations = {}
+        self._committed = False
 
         event = self._div["event_id"]
 
@@ -684,7 +863,7 @@ class _StageEditDialogue(object):
         self._window.grid()
         self._parent.title(title)
 
-        # self._refresh_checkpoints()
+        self._refresh_checkpoints()
 
     def _commit(self):
         try:
@@ -708,8 +887,12 @@ class _StageEditDialogue(object):
 
     def _add_checkpoint(self):
         num = 1
+        order = 1
         try:
             num += max(cpt["cpt_num"] for cpt in self._checkpoints.values())
+            order += max(
+                cpt["cpt_order"] for cpt in self._checkpoints.values()
+            )
         except ValueError:
             pass
 
@@ -718,7 +901,8 @@ class _StageEditDialogue(object):
             loc = list(self._locations.values())[0]
         except IndexError:
             messagebox.showerror(
-                message="You need to create check-point locations first")
+                message="You need to create check-point locations first"
+            )
             return
 
         cpt = self._db.create(
@@ -726,13 +910,14 @@ class _StageEditDialogue(object):
             div_id=self._div,
             stg_id=self._stage,
             loc_id=loc,
-            cpt_num=num
+            cpt_num=num,
+            cpt_order=order,
         )
         result = _CheckpointEditDialogue.show(
             parent=self._window,
             title="New Checkpoint",
             checkpoint=cpt,
-            locations=self._locations
+            locations=list(self._locations.values()),
         )
         if result:
             self._checkpoints[cpt.ref] = cpt
@@ -750,7 +935,7 @@ class _StageEditDialogue(object):
             parent=self._window,
             title="Edit Checkpoint %s" % cpt["cpt_num"],
             checkpoint=cpt,
-            locations=self._locations
+            locations=list(self._locations.values()),
         )
 
         if result:
@@ -798,7 +983,8 @@ class _CheckpointTable(Table):
 
     def _getobject(self, checkpoint):
         return (
-            "%d. %s" % (checkpoint["cpt_type"], checkpoint["loc_id"]),
+            "%d. %s"
+            % (checkpoint["cpt_num"], checkpoint["loc_id"]["loc_name"]),
             (
                 checkpoint["cpt_type"],
                 checkpoint["cpt_order"],
@@ -818,11 +1004,13 @@ class _CheckpointTable(Table):
 # | |             COMMIT                | |              CLOSE            | |
 # | '-----------------------------------' '-------------------------------' |
 # '-------------------------------------------------------------------------'
-class _LocationEditDialogue(object):
+class _CheckpointEditDialogue(object):
     @classmethod
-    def show(cls, parent, location, **kwargs):
+    def show(cls, parent, checkpoint, locations, **kwargs):
         tl = tkinter.Toplevel(parent)
-        dlg = cls(parent=tl, location=location, **kwargs)
+        dlg = cls(
+            parent=tl, checkpoint=checkpoint, locations=locations, **kwargs
+        )
         tl.transient(parent)  # dialog window is related to main
         tl.wait_visibility()  # can't grab until window appears, so we wait
         tl.grab_set()  # ensure all input goes to our window
@@ -833,7 +1021,8 @@ class _LocationEditDialogue(object):
     def __init__(
         self,
         title,
-        location,
+        checkpoint,
+        locations,
         commit_label="COMMIT",
         close_label="CLOSE",
         parent=None,
@@ -841,8 +1030,8 @@ class _LocationEditDialogue(object):
         if parent is None:
             parent = tkinter.Tk()
 
-        self._location = location
-        self._log = location._log.getChild("ui")
+        self._checkpoint = checkpoint
+        self._log = checkpoint._log.getChild("ui")
         self._committed = None
         self._parent = parent
         self._parent.protocol("WM_DELETE_WINDOW", self._dismiss)
@@ -851,26 +1040,43 @@ class _LocationEditDialogue(object):
 
         num_lbl = ttk.Label(self._window, text="Number")
         num_lbl.grid(column=0, row=0)
-        self._num_var = tkinter.StringVar(value=location["loc_num"])
+        self._num_var = tkinter.StringVar(
+            value=checkpoint.uservalue["cpt_num"]
+        )
         self._num_ent = ttk.Entry(self._window, textvariable=self._num_var)
         self._num_ent.grid(column=1, row=0, sticky=(tkinter.W, tkinter.E))
 
-        name_lbl = ttk.Label(self._window, text="Name")
-        name_lbl.grid(column=2, row=0)
-        self._name_var = tkinter.StringVar(value=location["loc_name"])
-        self._name_ent = ttk.Entry(self._window, textvariable=self._name_var)
-        self._name_ent.grid(column=3, row=0, sticky=(tkinter.W, tkinter.E))
+        loc_lbl = ttk.Label(self._window, text="Location")
+        loc_lbl.grid(column=2, row=0)
+        self._loc_lst = ObjectList(self._window, values=locations)
+        self._loc_lst.grid(column=3, row=0, sticky=(tkinter.W, tkinter.E))
 
-        tz_lbl = ttk.Label(self._window, text="Time-zone")
-        tz_lbl.grid(column=0, row=1)
-        self._tz_var = tkinter.StringVar(value=location["loc_tz"])
-        self._tz_lst = ttk.Combobox(self._window, textvariable=self._tz_var)
-        self._tz_lst.state(["readonly"])
-        self._tz_lst["values"] = (
-            "EVENT",
-            "LOCAL",
-        ) + tuple(sorted(zoneinfo.available_timezones()))
-        self._tz_lst.grid(
+        order_lbl = ttk.Label(self._window, text="Order")
+        order_lbl.grid(column=0, row=0)
+        self._order_var = tkinter.StringVar(
+            value=checkpoint.uservalue["cpt_order"]
+        )
+        self._order_ent = ttk.Entry(
+            self._window, textvariable=self._order_var
+        )
+        self._order_ent.grid(column=1, row=0, sticky=(tkinter.W, tkinter.E))
+
+        # Figure out from the event type what check-point types are permitted
+        division = checkpoint["div_id"]
+        event = division["event_id"]
+        event_type = event["event_type"]
+
+        cpt_type_lbl = ttk.Label(self._window, text="Type")
+        cpt_type_lbl.grid(column=0, row=1)
+        self._cpt_type_var = tkinter.StringVar(
+            value=checkpoint.uservalue["cpt_type"]
+        )
+        self._cpt_type_lst = ttk.Combobox(
+            self._window, textvariable=self._cpt_type_var
+        )
+        self._cpt_type_lst.state(["readonly"])
+        self._cpt_type_lst["values"] = event_type.data.checkpoint_types
+        self._cpt_type_lst.grid(
             column=1,
             row=1,
             columnspan=3,
@@ -895,9 +1101,10 @@ class _LocationEditDialogue(object):
 
     def _commit(self):
         try:
-            self._location.uservalue["loc_num"] = self._num_var.get()
-            self._location.uservalue["loc_name"] = self._name_var.get()
-            self._location.uservalue["loc_tz"] = self._tz_var.get()
+            self._checkpoint.uservalue["cpt_num"] = self._num_var.get()
+            self._checkpoint.uservalue["cpt_order"] = self._order_var.get()
+            self._checkpoint["loc_id"] = self._loc_lst.selection
+            self._checkpoint.uservalue["cpt_type"] = self._cpt_type_var.get()
         except ValueError as e:
             messagebox.showerror(message=str(e))
             return
@@ -906,13 +1113,21 @@ class _LocationEditDialogue(object):
         self._close()
 
     def _dismiss(self):
-        self._location.revert()
+        self._checkpoint.revert()
         self._committed = False
         self._close()
 
     def _close(self):
         self._parent.grab_release()
         self._parent.destroy()
+
+
+class EventTypeList(EnumList):
+    def __init__(self, parent, **kwargs):
+        super(EventTypeList, self).__init__(parent, EventType, **kwargs)
+
+    def _get_text(self, value):
+        return value.data.name
 
 
 # .---------------------------- Event Set-up -------------------------------.
@@ -966,6 +1181,17 @@ class _LocationEditDialogue(object):
 # | '---------------------------------------------------------------------' |
 # '-------------------------------------------------------------------------'
 class EventSetupDialogue(object):
+    @classmethod
+    def show(cls, parent, event, **kwargs):
+        tl = tkinter.Toplevel(parent)
+        dlg = cls(parent=tl, event=event, **kwargs)
+        tl.transient(parent)  # dialog window is related to main
+        tl.wait_visibility()  # can't grab until window appears, so we wait
+        tl.grab_set()  # ensure all input goes to our window
+        tl.wait_window()  # block until window is destroyed
+
+        return dlg._committed
+
     def __init__(self, event, parent=None):
         if parent is None:
             parent = tkinter.Tk()
@@ -975,6 +1201,7 @@ class EventSetupDialogue(object):
         self._log = event._log.getChild("ui")
         self._locations = {}
         self._divisions = {}
+        self._committed = False
 
         # Refresh direct references if known
         if event.entity_id is not None:
@@ -1010,15 +1237,8 @@ class EventSetupDialogue(object):
 
         evttype_lbl = ttk.Label(self._evtsetup_frame, text="Event Type")
         evttype_lbl.grid(column=0, row=0)
-        self._evttype_var = tkinter.StringVar(
-            value=event["event_type"].data.name
-        )
-        self._evttype_lst = ttk.Combobox(
-            self._evtsetup_frame, textvariable=self._evttype_var
-        )
-        self._evttype_lst.state(["readonly"])
-        self._evttype_lst["values"] = tuple(
-            et.data.name for et in EVENT_TYPES
+        self._evttype_lst = EventTypeList(
+            self._evtsetup_frame, value=next(iter(EventType))
         )
         self._evttype_lst.grid(column=1, row=0, sticky=(tkinter.W, tkinter.E))
 
@@ -1036,21 +1256,21 @@ class EventSetupDialogue(object):
             self._evtsetup_frame, text="Authorizing Organisation"
         )
         authorg_lbl.grid(column=0, row=1)
-        self._evtname_var = tkinter.StringVar(
+        self._authorg_var = tkinter.StringVar(
             value=event.uservalue["auth_org"]
         )
         self._authorg_ent = ttk.Entry(
-            self._evtsetup_frame, textvariable=self._evtname_var
+            self._evtsetup_frame, textvariable=self._authorg_var
         )
         self._authorg_ent.grid(column=1, row=1, sticky=(tkinter.W, tkinter.E))
 
         location_lbl = ttk.Label(self._evtsetup_frame, text="Location")
         location_lbl.grid(column=2, row=1)
-        self._evtname_var = tkinter.StringVar(
+        self._location_var = tkinter.StringVar(
             value=event.uservalue["location"]
         )
         self._location_ent = ttk.Entry(
-            self._evtsetup_frame, textvariable=self._evtname_var
+            self._evtsetup_frame, textvariable=self._location_var
         )
         self._location_ent.grid(
             column=3, row=1, sticky=(tkinter.W, tkinter.E)
@@ -1152,12 +1372,6 @@ class EventSetupDialogue(object):
 
         self._refresh_locations()
         self._refresh_divisions()
-
-    def _commit(self):
-        pass
-
-    def _dismiss(self):
-        pass
 
     def _add_location(self):
         num = 1
@@ -1360,6 +1574,75 @@ class EventSetupDialogue(object):
         # Add new rows
         for div in divisions[len(self._div_tbl) :]:
             self._div_tbl.append(div)
+
+    def _commit(self):
+        try:
+            try:
+                self._event["event_type"] = self._evttype_lst.selection
+                self._event.uservalue["event_name"] = self._evtname_var.get()
+                self._event.uservalue["auth_org"] = self._authorg_var.get()
+                self._event.uservalue["location"] = self._location_var.get()
+                self._event.uservalue[
+                    "start_date"
+                ] = self._startdate_var.get()
+                self._event.uservalue["end_date"] = self._enddate_var.get()
+                self._event.uservalue["event_tz"] = self._evttz_var.get()
+            except ValueError as e:
+                self._log.error("Event validation failed", exc_info=1)
+                messagebox.showerror(message=str(e))
+                return
+
+            self._log.debug("Committing event")
+            # Validation passes, everything else has been checked, let's
+            # commit it to the database.  First, gather up the changes.
+            statements = [self._event.dbvalue.statement]
+            statements.extend(
+                loc.dbvalue.statement
+                for loc in self._event.get_references(Location)
+            )
+
+            for div in self._event.get_references(Division):
+                self._log.debug("Inspecting division %s", div)
+                statements.append(div.dbvalue.statement)
+                statements.extend(
+                    cmp.dbvalue.statement
+                    for cmp in div.get_references(Competitor)
+                )
+
+                for stg in div.get_references(Stage):
+                    self._log.debug(
+                        "Inspecting division %s stage %s", div, stg
+                    )
+                    statements.append(stg.dbvalue.statement)
+                    statements.extend(
+                        cpt.dbvalue.statement
+                        for cpt in stg.get_references(Checkpoint)
+                    )
+
+            self._log.debug("%d statements before filtering", len(statements))
+            statements = list(filter(lambda s : s is not None, statements))
+            self._log.debug("%d statements after filtering", len(statements))
+
+            if statements:
+                self._db.commit(statements)
+        except Exception as e:
+            self._log.error("Change set commit failed", exc_info=1)
+            messagebox.showerror(
+                message="Failed to commit changes: %s" % (e,)
+            )
+            return
+
+        self._committed = True
+        self._close()
+
+    def _dismiss(self):
+        self._event.revert()
+        self._committed = False
+        self._close()
+
+    def _close(self):
+        self._parent.grab_release()
+        self._parent.destroy()
 
 
 if __name__ == "__main__":
