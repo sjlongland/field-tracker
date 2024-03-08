@@ -41,3 +41,10 @@ class Checkpoint(Entity):
         super(Checkpoint, self).__init__(
             db, stg_id=stg_id, entity_id=cpt_id, **kwargs
         )
+
+    def __str__(self):
+        return "%d. %s [%s]" % (
+            self["cpt_num"],
+            self["loc_id"]["loc_name"],
+            self["cpt_type"],
+        )

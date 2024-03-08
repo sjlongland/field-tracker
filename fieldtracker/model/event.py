@@ -28,3 +28,6 @@ class Event(Entity):
 
     def __init__(self, db, event_id, **kwargs):
         super(Event, self).__init__(db, entity_id=event_id, **kwargs)
+
+    def __str__(self):
+        return self["event_name"]

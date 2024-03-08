@@ -61,3 +61,10 @@ class Message(Entity):
         super(Message, self).__init__(
             db, event_id=event_id, entity_id=msg_id, **kwargs
         )
+
+    def __str__(self):
+        return "MSG:%d %s: %s" % (
+            self["msg_id"],
+            self.uservalue["msg_ts"],
+            self.uservalue["msg_text"],
+        )

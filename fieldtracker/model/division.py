@@ -28,3 +28,6 @@ class Division(Entity):
         super(Division, self).__init__(
             db, event_id=event_id, entity_id=div_id, **kwargs
         )
+
+    def __str__(self):
+        return "%d. %s" % (self["div_num"], self["div_name"])

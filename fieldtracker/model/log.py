@@ -56,3 +56,12 @@ class Log(Entity):
         super(Log, self).__init__(
             db, event_id=event_id, entity_id=log_id, **kwargs
         )
+
+    def __str__(self):
+        return "OPER:%d %s: CPT %s CMP %s STATUS %s" % (
+            self["log_id"],
+            self.uservalue["log_ts"],
+            self.uservalue["cpt_num"],
+            self.uservalue["cmp_num"],
+            self.uservalue["log_status"],
+        )

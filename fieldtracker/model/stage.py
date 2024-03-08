@@ -29,3 +29,6 @@ class Stage(Entity):
         super(Stage, self).__init__(
             db, div_id=div_id, entity_id=stg_id, **kwargs
         )
+
+    def __str__(self):
+        return "%d. %s" % (self["stg_num"], self["stg_name"])

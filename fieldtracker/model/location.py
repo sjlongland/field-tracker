@@ -29,3 +29,6 @@ class Location(Entity):
         super(Location, self).__init__(
             db, event_id=event_id, entity_id=loc_id, **kwargs
         )
+
+    def __str__(self):
+        return "%d. %s" % (self["loc_num"], self["loc_name"])

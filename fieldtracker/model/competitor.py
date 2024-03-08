@@ -36,3 +36,9 @@ class Competitor(Entity):
         super(Competitor, self).__init__(
             db, div_id=div_id, entity_id=cmp_id, **kwargs
         )
+
+    def __str__(self):
+        if self["cmp_name"]:
+            return "%d. %s" % (self["cmp_num"], self["cmp_name"])
+        else:
+            return self.uservalue["cmp_num"]
