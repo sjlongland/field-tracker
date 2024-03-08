@@ -149,9 +149,7 @@ class Database(object):
     def _fetch(self, etype, criteria):
         (sql, args) = etype.select(criteria)
         log = self._log.getChild(etype._ENTITY_TABLE)
-        log.debug(
-            "Querying %r (args %r)", sql, args
-        )
+        log.debug("Querying %r (args %r)", sql, args)
         cur = self._conn.cursor()
         cur.execute(sql, args)
         for row in cur:

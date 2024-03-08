@@ -49,7 +49,7 @@ class Entity(MutableMapping):
             # Select everything!
             return (
                 ("SELECT %s FROM %s;" % (fieldlist, cls._ENTITY_TABLE)),
-                ()
+                (),
             )
 
     @classmethod
@@ -424,7 +424,9 @@ class EntityDbValues(MutableMapping):
             if not values:
                 return
 
-            self._log.debug("Generating INSERT statement inserting %r", values)
+            self._log.debug(
+                "Generating INSERT statement inserting %r", values
+            )
             return Statement(
                 Action.INSERT,
                 ent._ENTITY_TABLE,
