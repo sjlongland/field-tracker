@@ -3,6 +3,9 @@
 # Button box component, lays out buttons in a horizontal or vertical layout
 # evenly.
 
+# © 2024 Stuart Longland VK4MSL
+# SPDX-License-Identifier: Python-2.0
+
 # GUI stuff
 import tkinter
 from tkinter import ttk
