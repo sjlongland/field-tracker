@@ -250,11 +250,18 @@ class Entity(MutableMapping):
             del self[field]
 
     def _set_entity_id(self, row_id):
-        self._entity_id = self.entity_id_spec.from_db(row_id, ent=self)
-        self._log = self._db._log.child(
-            "%s.%s" % (self._ENTITY_TABLE, entity_id)
-        )
-        self._log.debug("Row created")
+        if row_id is not None:
+            self._entity_id = self.entity_id_spec.from_db(row_id, entity=self)
+            self._log = self._db._log.getChild(
+                "%s.%s" % (self._ENTITY_TABLE, self._entity_id)
+            )
+            self._log.debug("Row created")
+        else:
+            self._entity_id = None
+            self._log = self._db._log.getChild(
+                "%s.@%s" % (self._ENTITY_TABLE, id(self))
+            )
+            self._log.debug("Row creation rolled back")
 
     def _refresh(self, row):
         data = self._decode_row(self._db, row)
@@ -399,6 +406,7 @@ class EntityDbValues(MutableMapping):
             values = dict(
                 (name, self[name])
                 for name, spec in ent._ENTITY_FIELDS.items()
+                if name != ent._ID_FIELD
             )
             return Statement(
                 Action.INSERT,
@@ -429,13 +437,16 @@ class EntityDbValues(MutableMapping):
         Successful commit callback, amend the current entity data with the
         newly committed changes.
         """
-        cache = self._db._cache[self._ENTITY_TABLE]
-        if self._entity.delete:
-            cache.pop(self.entity_id, None)
+        entity = self._entity
+        cache = entity._db._cache[entity._ENTITY_TABLE]
+        if entity.delete:
+            self._log.debug("Removing deleted entity from cache")
+            cache.pop(entity.entity_id, None)
         else:
-            self._entity._data_fields.update(self._entity._changed_fields)
-            self._entity._changed_fields = {}
-            cache[self.entity_id] = self
+            self._log.debug("Recording entity as committed")
+            entity._data_fields.update(entity._changed_fields)
+            entity._changed_fields = {}
+            cache[entity.entity_id] = entity
 
 
 class FieldSpec(object):
@@ -518,7 +529,22 @@ class ForeignFieldSpec(FieldSpec):
             return match
 
     def to_db(self, value, db=None, entity=None):
-        return self.spec.to_db(value.entity_id, db=db, entity=entity)
+        if value.entity_id is None:
+            # We don't know, so return a callable
+            def _get_id(display):
+                eid = value.entity_id
+                if eid is None:
+                    if display:
+                        return "<placeholder for %s>" % value
+                    else:
+                        raise ValueError("ID of %r not yet known" % value)
+
+                return self.spec.to_db(eid, db=db, entity=entity)
+
+            return _get_id
+        else:
+            # ID value known now, so use that
+            return self.spec.to_db(value.entity_id, db=db, entity=entity)
 
 
 class RangeFieldSpec(FieldSpec):
@@ -703,7 +729,7 @@ class Statement(object):
 
     @property
     def arguments(self):
-        return self._arguments
+        return self._get_arguments(display=False)
 
     @property
     def rowid_callback(self):
@@ -717,5 +743,16 @@ class Statement(object):
         return "%s{%s :: %r}" % (
             self.__class__.__name__,
             self.statement,
-            self.arguments,
+            self._get_arguments(True),
         )
+
+    def _get_arguments(self, display=False):
+        return tuple(self._get_value(arg, display) for arg in self._arguments)
+
+    def _get_value(self, arg, display):
+        if callable(arg):
+            # Call the function to determine the value to insert
+            return arg(display)
+        else:
+            # Return the argument as-is
+            return arg
