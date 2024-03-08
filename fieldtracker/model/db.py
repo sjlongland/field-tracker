@@ -70,7 +70,7 @@ class Database(object):
                 log.debug("Refreshed ID=%r", entity_id)
             except KeyError:
                 # Expired from cache
-                entity = etype(db, **match)
+                entity = etype(self, **match)
                 cache[entity_id] = entity
                 log.debug("Loaded ID=%r", entity_id)
 
