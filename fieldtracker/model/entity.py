@@ -388,10 +388,11 @@ class EntityDbValues(MutableMapping):
 
         if ent.delete:
             if ent.entity_id is not None:
+                self._log.debug("Generating DELETE statement")
                 return Statement(
                     Action.DELETE,
                     ent._ENTITY_TABLE,
-                    where=self.where,
+                    criteria=self.where,
                     commit_callback=self._mark_committed,
                 )
             else:
@@ -403,11 +404,15 @@ class EntityDbValues(MutableMapping):
                 for name, spec in ent._ENTITY_FIELDS.items()
                 if name in dirty
             )
+            if not changes:
+                return
+
+            self._log.debug("Generating UPDATE statement setting %r", changes)
             return Statement(
                 Action.UPDATE,
                 ent._ENTITY_TABLE,
                 values=changes,
-                where=self.where,
+                criteria=self.where,
                 commit_callback=self._mark_committed,
             )
         else:
@@ -416,6 +421,10 @@ class EntityDbValues(MutableMapping):
                 for name, spec in ent._ENTITY_FIELDS.items()
                 if name != ent._ID_FIELD
             )
+            if not values:
+                return
+
+            self._log.debug("Generating INSERT statement inserting %r", values)
             return Statement(
                 Action.INSERT,
                 ent._ENTITY_TABLE,
