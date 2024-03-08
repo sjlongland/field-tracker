@@ -359,6 +359,9 @@ class _DivisionEditDialogue(object):
             parent=self._competitors_frame, orientation=tkinter.VERTICAL
         )
         competitor_buttons.add_button("Add", command=self._add_competitor)
+        competitor_buttons.add_button(
+            "Add Many", command=self._add_competitors
+        )
         competitor_buttons.add_button("Edit", command=self._edit_competitor)
         competitor_buttons.add_button(
             "Delete", command=self._delete_competitor
@@ -496,6 +499,30 @@ class _DivisionEditDialogue(object):
         )
         if result:
             self._competitors[cmp.ref] = cmp
+        else:
+            cmp.delete = True
+
+        self._refresh_competitors()
+
+    def _add_competitors(self):
+        num = 1
+        try:
+            num += max(cmp["cmp_num"] for cmp in self._competitors.values())
+        except ValueError:
+            pass
+
+        result = _CompetitorMassAddDialogue.show(
+            parent=self._window,
+            title="Mass-add Competitors",
+            start=num,
+        )
+        if result:
+            (start, end) = result
+            for num in range(start, end + 1):
+                cmp = self._db.create(
+                    Competitor, div_id=self._division, cmp_num=num
+                )
+                self._competitors[cmp.ref] = cmp
         else:
             cmp.delete = True
 
@@ -647,10 +674,9 @@ class _CompetitorEditDialogue(object):
 
         state_lbl = ttk.Label(self._window, text="State")
         state_lbl.grid(column=0, row=1)
-        self._state_var = tkinter.StringVar(
-            value=competitor.uservalue["cmp_state"]
+        self._state_lst = EnumList(
+            self._window, enum=CompetitorState, value=competitor["cmp_state"]
         )
-        self._state_lst = EnumList(self._window, enum=CompetitorState)
         self._state_lst.grid(
             column=1,
             row=1,
@@ -678,7 +704,7 @@ class _CompetitorEditDialogue(object):
         try:
             self._competitor.uservalue["cmp_num"] = self._num_var.get()
             self._competitor.uservalue["cmp_name"] = self._name_var.get()
-            self._competitor.uservalue["cmp_state"] = self._state_var.get()
+            self._competitor["cmp_state"] = self._state_lst.selection
         except ValueError as e:
             messagebox.showerror(message=str(e))
             return
@@ -689,6 +715,101 @@ class _CompetitorEditDialogue(object):
     def _dismiss(self):
         self._competitor.revert()
         self._committed = False
+        self._close()
+
+    def _close(self):
+        self._parent.grab_release()
+        self._parent.destroy()
+
+
+# .---------------------------- Mass add competitors -----------------------.
+# |       .-----.                             .-----.                       |
+# | Start |     |                         End |     |                       |
+# |       '-----'                             '-----'                       |
+# | .-----------------------------------. .-------------------------------. |
+# | |             COMMIT                | |              CLOSE            | |
+# | '-----------------------------------' '-------------------------------' |
+# '-------------------------------------------------------------------------'
+class _CompetitorMassAddDialogue(object):
+    @classmethod
+    def show(cls, parent, start, **kwargs):
+        tl = tkinter.Toplevel(parent)
+        dlg = cls(parent=tl, start=start, **kwargs)
+        tl.transient(parent)  # dialog window is related to main
+        tl.wait_visibility()  # can't grab until window appears, so we wait
+        tl.grab_set()  # ensure all input goes to our window
+        tl.wait_window()  # block until window is destroyed
+
+        return dlg._committed
+
+    def __init__(
+        self,
+        title,
+        start,
+        end=None,
+        commit_label="COMMIT",
+        close_label="CLOSE",
+        parent=None,
+    ):
+        if parent is None:
+            parent = tkinter.Tk()
+
+        if end is None:
+            end = start
+
+        self._committed = None
+        self._parent = parent
+        self._parent.protocol("WM_DELETE_WINDOW", self._dismiss)
+
+        self._window = ttk.Frame(self._parent)
+
+        start_num_lbl = ttk.Label(self._window, text="Start")
+        start_num_lbl.grid(column=0, row=0)
+        self._start_num_var = tkinter.StringVar(value=str(start))
+        self._start_num_ent = ttk.Entry(
+            self._window, textvariable=self._start_num_var
+        )
+        self._start_num_ent.grid(
+            column=1, row=0, sticky=(tkinter.W, tkinter.E)
+        )
+
+        end_num_lbl = ttk.Label(self._window, text="End")
+        end_num_lbl.grid(column=2, row=0)
+        self._end_num_var = tkinter.StringVar(value=str(end))
+        self._end_num_ent = ttk.Entry(
+            self._window, textvariable=self._end_num_var
+        )
+        self._end_num_ent.grid(column=3, row=0, sticky=(tkinter.W, tkinter.E))
+
+        buttons = ButtonBox(parent=self._window)
+        buttons.add_button(commit_label, command=self._commit)
+        buttons.add_button(close_label, command=self._dismiss)
+        buttons.grid(
+            column=0,
+            row=2,
+            columnspan=4,
+            rowspan=1,
+            sticky=(tkinter.E, tkinter.W),
+        )
+        self._window.columnconfigure(1, weight=1)
+        self._window.columnconfigure(3, weight=1)
+        self._window.grid()
+        self._parent.title(title)
+
+    def _commit(self):
+        try:
+            self._committed = (
+                int(self._start_num_var.get(), base=10),
+                int(self._end_num_var.get(), base=10),
+            )
+        except ValueError as e:
+            messagebox.showerror(message=str(e))
+            return
+
+        self._close()
+
+    def _dismiss(self):
+        self._committed = None
         self._close()
 
     def _close(self):
@@ -1620,7 +1741,7 @@ class EventSetupDialogue(object):
                     )
 
             self._log.debug("%d statements before filtering", len(statements))
-            statements = list(filter(lambda s : s is not None, statements))
+            statements = list(filter(lambda s: s is not None, statements))
             self._log.debug("%d statements after filtering", len(statements))
 
             if statements:
