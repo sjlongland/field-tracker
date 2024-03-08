@@ -38,6 +38,9 @@ class Database(object):
         self._log = log
         self._conn = sqlite3.connect(path)
 
+        # Enable foreign keys
+        self._conn.execute("PRAGMA foreign_keys = ON;")
+
         # Create caches
         self._cache = dict(
             (etype._ENTITY_TABLE, weakref.WeakValueDictionary())
