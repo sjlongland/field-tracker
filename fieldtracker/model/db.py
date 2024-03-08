@@ -101,28 +101,38 @@ class Database(object):
                 self._log.debug("Execute: %r", statement)
                 cur.execute(statement.statement, statement.arguments)
                 if statement.rowid_callback:
-                    # Note the statement and row ID
-                    creations.append((statement, cur.lastrowid))
+                    # Report the committed ID for updating placeholders
+                    try:
+                        statement.rowid_callback(cur.lastrowid)
+                    except:
+                        self._log.debug(
+                            "Failed to notify row ID: statement was %r",
+                            statement,
+                            exc_info=1,
+                        )
+                        raise
+
+                    # Make a note in case we need to roll back
+                    creations.append(statement)
         except:
             self._log.debug(
                 "Exception occurred during commit %r", statement, exc_info=1
             )
             self._conn.rollback()
+            for statement in creations:
+                try:
+                    # Roll-back the ID assignment
+                    statement.rowid_callback(None)
+                except:
+                    self._log.debug(
+                        "Failed to notify row ID: statement was %r",
+                        statement,
+                        exc_info=1,
+                    )
             raise
 
         self._conn.commit()
         self._log.debug("Committed %d statements", len(statements))
-
-        # Pass back committed row IDs
-        for statement, row_id in creations:
-            try:
-                statement.rowid_callback(row_id)
-            except:
-                self._log.debug(
-                    "Failed to notify row ID: statement was %r",
-                    statement,
-                    exc_info=1,
-                )
 
         # Mark everything committed
         for statement in statements:
