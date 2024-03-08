@@ -119,6 +119,7 @@ class Entity(MutableMapping):
 
             if name != self._ID_FIELD:
                 self._data_fields[name] = value
+
         self._log.debug(
             "initialised instance with data %r", self._data_fields
         )
@@ -272,16 +273,15 @@ class Entity(MutableMapping):
             self._log.debug("Row creation rolled back")
 
     def _refresh(self, row):
-        data = self._decode_row(self._db, row)
         try:
-            entity_id = data.pop(self._ID_FIELD)
+            entity_id = row.pop(self._ID_FIELD)
         except KeyError:
             raise ValueError("No ID field in row")
 
-        if entity_id != this.entity_id:
+        if entity_id != self.entity_id:
             raise ValueError("Row does not match this entity's ID")
 
-        self._data_fields.update(data)
+        self._data_fields.update(row)
 
     def _link(self, entity):
         self._log.debug("Recording link from %r to %r", entity, self)
