@@ -205,8 +205,8 @@ class Entity(MutableMapping):
         self._changed_fields[name] = value
 
         if isinstance(spec, ForeignFieldSpec):
-            old._unlink(self, old)
-            value._link(self, value)
+            old._unlink(self)
+            value._link(self)
 
     def __delitem__(self, name):
         old = self._changed_fields.pop(name)
@@ -214,9 +214,9 @@ class Entity(MutableMapping):
 
         spec = self._ENTITY_FIELDS[name]
         if isinstance(spec, ForeignFieldSpec):
-            old._unlink(self, old)
+            old._unlink(self)
             if value is not None:
-                value._link(self, value)
+                value._link(self)
 
     def __len__(self):
         return len(self._ENTITY_FIELDS)
