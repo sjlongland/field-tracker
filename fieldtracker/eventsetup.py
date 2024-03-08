@@ -1542,6 +1542,7 @@ class EventSetupDialogue(object):
         assert isinstance(loc, Location)
 
         self._locations.pop(loc.ref, None)
+        loc.delete = True
         del self._loc_tbl[idx]
 
         self._refresh_locations()
@@ -1609,73 +1610,7 @@ class EventSetupDialogue(object):
         assert isinstance(div, Division)
 
         self._divisions.pop(div.ref, None)
-        del self._div_tbl[idx]
-
-        self._refresh_divisions()
-
-    def _refresh_divisions(self):
-        divisions = list(self._divisions.values())
-        divisions.sort(key=lambda div: div["div_num"])
-
-        # Drop excess elements
-        while len(self._div_tbl) > len(divisions):
-            del self._div_tbl[len(divisions) - 1]
-
-        # Update existing rows
-        for idx, div in enumerate(divisions[0 : len(self._div_tbl)]):
-            self._div_tbl[idx] = div
-
-        # Add new rows
-        for div in divisions[len(self._div_tbl) :]:
-            self._div_tbl.append(div)
-
-    def _add_division(self):
-        num = 1
-        try:
-            num += max(div["div_num"] for div in self._divisions.values())
-        except ValueError:
-            pass
-
-        div = self._db.create(
-            Division,
-            event_id=self._event,
-            div_num=num,
-            div_name="Division %d" % num,
-            start_date=self._event["start_date"],
-            end_date=self._event["end_date"],
-        )
-        result = _DivisionEditDialogue.show(
-            parent=self._window, title="New Division", division=div
-        )
-        if result:
-            self._divisions[div.ref] = div
-        else:
-            div.delete = True
-
-        self._refresh_divisions()
-
-    def _edit_division(self):
-        idx = self._div_tbl.selection
-        div = self._div_tbl[idx]
-        assert isinstance(div, Division)
-
-        result = _DivisionEditDialogue.show(
-            parent=self._window,
-            title="Edit Division: %s" % div["div_name"],
-            division=div,
-        )
-
-        if result:
-            self._divisions[div.ref] = div
-
-        self._refresh_divisions()
-
-    def _delete_division(self):
-        idx = self._div_tbl.selection
-        div = self._div_tbl[idx]
-        assert isinstance(div, Division)
-
-        self._divisions.pop(div.ref, None)
+        div.delete = True
         del self._div_tbl[idx]
 
         self._refresh_divisions()
