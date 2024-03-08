@@ -464,6 +464,7 @@ class _DivisionEditDialogue(object):
         assert isinstance(stg, Stage)
 
         self._stages.pop(stg.ref, None)
+        stg.delete = True
         del self._stg_tbl[idx]
 
         self._refresh_stages()
@@ -551,6 +552,7 @@ class _DivisionEditDialogue(object):
         assert isinstance(cmp, Competitor)
 
         self._competitors.pop(cmp.ref, None)
+        cmp.delete = True
         del self._cmp_tbl[idx]
 
         self._refresh_competitors()
@@ -1070,6 +1072,7 @@ class _StageEditDialogue(object):
         assert isinstance(cpt, Checkpoint)
 
         self._checkpoints.pop(cpt.ref, None)
+        cpt.delete = True
         del self._cpt_tbl[idx]
 
         self._refresh_checkpoints()
