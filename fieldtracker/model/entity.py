@@ -446,7 +446,7 @@ class EntityDbValues(MutableMapping):
         """
         Commit this change immediately
         """
-        self._db.commit([self.statement])
+        self._entity_db.commit([self.statement])
 
     def revert(self):
         self._entity.revert()
