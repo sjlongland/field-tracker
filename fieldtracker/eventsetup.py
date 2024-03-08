@@ -1655,13 +1655,18 @@ if __name__ == "__main__":
     db = Database("test.sqlite3")
     db.init()
 
-    now = datetime.datetime.now()
-    evt = db.create(
-        Event,
-        event_name="Test Event",
-        start_date=now.date(),
-        end_date=(now + datetime.timedelta(days=1)).date(),
-    )
+    # See if there's an event already
+    events = list(db.fetch(Event))
+    if events:
+        evt = events[-1]
+    else:
+        now = datetime.datetime.now()
+        evt = db.create(
+            Event,
+            event_name="Test Event",
+            start_date=now.date(),
+            end_date=(now + datetime.timedelta(days=1)).date(),
+        )
 
     tk = tkinter.Tk()
     esd = EventSetupDialogue(parent=tk, event=evt)
