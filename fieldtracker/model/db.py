@@ -148,12 +148,17 @@ class Database(object):
 
     def _fetch(self, etype, criteria):
         (sql, args) = etype.select(criteria)
-        self._log.getChild(etype._ENTITY_TABLE).debug(
+        log = self._log.getChild(etype._ENTITY_TABLE)
+        log.debug(
             "Querying %r (args %r)", sql, args
         )
         cur = self._conn.cursor()
+        cur.execute(sql, args)
         for row in cur:
-            yield etype._decode_row(
-                db=self,
-                row=dict((c[0], v) for c, v in zip(cur.description, row)),
-            )
+            rowdata = dict((c[0], v) for c, v in zip(cur.description, row))
+
+            log.debug("Decoding %r", rowdata)
+            decoded = etype._decode_row(db=self, row=rowdata)
+
+            log.debug("Returning %r", decoded)
+            yield decoded
