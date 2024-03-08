@@ -55,7 +55,7 @@ class Database(object):
         self._log.debug("Committed schema")
         self._conn.commit()
 
-    def fetch(self, etype, criteria):
+    def fetch(self, etype, criteria=None):
         # Retrieve cache
         cache = self._cache[etype._ENTITY_TABLE]
         log = self._log.getChild(etype._ENTITY_TABLE)
