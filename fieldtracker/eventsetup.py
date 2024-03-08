@@ -1653,8 +1653,34 @@ class EventSetupDialogue(object):
 
             self._log.debug("Committing event")
             # Validation passes, everything else has been checked, let's
-            # commit it to the database.  First, gather up the changes.
-            statements = [self._event.dbvalue.statement]
+            # commit it to the database.
+            statements = []
+
+            # Look for deletions of checkpoints first
+            statements.extend(
+                cpt.dbvalue.statement
+                for cpt in self._db.get_deletions(Checkpoint)
+            )
+
+            # Now stages
+            statements.extend(
+                stg.dbvalue.statement for stg in self._db.get_deletions(Stage)
+            )
+
+            # Now competitors
+            statements.extend(
+                cmp.dbvalue.statement
+                for cmp in self._db.get_deletions(Competitor)
+            )
+
+            # Finally divisions
+            statements.extend(
+                div.dbvalue.statement
+                for div in self._db.get_deletions(Division)
+            )
+
+            # Gather up the insert/update changes.
+            statements.append(self._event.dbvalue.statement)
             statements.extend(
                 loc.dbvalue.statement
                 for loc in self._event.get_references(Location)
