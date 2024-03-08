@@ -174,8 +174,12 @@ class Entity(MutableMapping):
         self._log.debug("Setting delete flag to %r", self._delete)
         if value:
             self._unlink_all()
+            if self.entity_id is not None:
+                self._db._mark_delete(self, True)
         else:
             self._link_all()
+            if self.entity_id is not None:
+                self._db._mark_delete(self, False)
 
     def __repr__(self):
         if self.entity_id is not None:
@@ -461,6 +465,9 @@ class EntityDbValues(MutableMapping):
         if entity.delete:
             self._log.debug("Removing deleted entity from cache")
             cache.pop(entity.entity_id, None)
+
+            if entity.entity_id is not None:
+                entity._db._mark_delete(entity, False)
         else:
             self._log.debug("Recording entity as committed")
             entity._data_fields.update(entity._changed_fields)
