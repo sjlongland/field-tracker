@@ -21,7 +21,7 @@ class Competitor(Entity):
     _ENTITY_FIELDS = {
         "div_id": ForeignFieldSpec(Division),
         "cmp_id": IntFieldSpec(minimum=0),
-        "cmp_name": TextFieldSpec(),
+        "cmp_name": TextFieldSpec(nullable=True),
         "cmp_num": IntFieldSpec(minimum=0),
         "cmp_state": EnumTextFieldSpec(
             CompetitorState, default=CompetitorState.VALID
