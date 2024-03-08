@@ -98,17 +98,15 @@ class Database(object):
         creations = []
         try:
             for statement in statements:
-                self._log.debug(
-                    "Execute: %r (args %r)",
-                    statement.statement,
-                    statement.arguments,
-                )
+                self._log.debug("Execute: %r", statement)
                 cur.execute(statement.statement, statement.arguments)
                 if statement.rowid_callback:
                     # Note the statement and row ID
                     creations.append((statement, cur.lastrowid))
         except:
-            self._log.debug("Exception occurred during commit", exc_info=1)
+            self._log.debug(
+                "Exception occurred during commit %r", statement, exc_info=1
+            )
             self._conn.rollback()
             raise
 
@@ -121,9 +119,8 @@ class Database(object):
                 statement.rowid_callback(row_id)
             except:
                 self._log.debug(
-                    "Failed to notify row ID: statement was %r (args %r)",
-                    statement.statement,
-                    statement.arguments,
+                    "Failed to notify row ID: statement was %r",
+                    statement,
                     exc_info=1,
                 )
 
@@ -134,9 +131,8 @@ class Database(object):
                     statement.commit_callback()
                 except:
                     self._log.debug(
-                        "Failed to notify commit: statement was %r (args %r)",
-                        statement.statement,
-                        statement.arguments,
+                        "Failed to notify commit: statement was %r",
+                        statement,
                         exc_info=1,
                     )
 
