@@ -35,14 +35,22 @@ class Entity(MutableMapping):
         cur.execute(statement)
 
     @classmethod
-    def select(cls, criteria):
-        where_sql, where_args = compile_criteria(criteria)
-        sql = "SELECT %s FROM %s WHERE %s;" % (
-            cls._ENTITY_TABLE,
-            ", ".join(sorted(cls._ENTITY_FIELDS.keys())),
-            where_sql,
-        )
-        return (sql, where_args)
+    def select(cls, criteria=None):
+        fieldlist = ", ".join(sorted(cls._ENTITY_FIELDS.keys()))
+        if criteria is not None:
+            where_sql, where_args = compile_where(criteria)
+            sql = "SELECT %s FROM %s WHERE %s;" % (
+                fieldlist,
+                cls._ENTITY_TABLE,
+                where_sql,
+            )
+            return (sql, where_args)
+        else:
+            # Select everything!
+            return (
+                ("SELECT %s FROM %s;" % (fieldlist, cls._ENTITY_TABLE)),
+                ()
+            )
 
     @classmethod
     def _get_colspec(cls, name, spec):
