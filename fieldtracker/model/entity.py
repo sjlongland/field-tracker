@@ -712,3 +712,10 @@ class Statement(object):
     @property
     def commit_callback(self):
         return self._commit_callback
+
+    def __repr__(self):
+        return "%s{%s :: %r}" % (
+            self.__class__.__name__,
+            self.statement,
+            self.arguments,
+        )
