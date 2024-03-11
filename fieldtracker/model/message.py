@@ -38,13 +38,12 @@ class MessageStatus(Enum):
 class Message(Entity):
     _ENTITY_FIELDS = {
         "event_id": ForeignFieldSpec(Event),
-        "div_id": ForeignFieldSpec(Division, nullable=True),
         "msg_id": IntFieldSpec(minimum=0),
         "msg_ts": DateTimeFieldSpec(),
-        "div_id": ForeignFieldSpec(Division, nullable=True),
-        "stg_id": ForeignFieldSpec(Stage, nullable=True),
-        "cpt_id": ForeignFieldSpec(Checkpoint, nullable=True),
-        "cmp_id": ForeignFieldSpec(Competitor, nullable=True),
+        "msg_div_id": ForeignFieldSpec(Division, nullable=True),
+        "msg_stg_id": ForeignFieldSpec(Stage, nullable=True),
+        "msg_cpt_id": ForeignFieldSpec(Checkpoint, nullable=True),
+        "msg_cmp_id": ForeignFieldSpec(Competitor, nullable=True),
         "msg_severity": EnumIntFieldSpec(
             MessageSeverity, default=MessageSeverity.Info
         ),
