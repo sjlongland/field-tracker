@@ -10,20 +10,18 @@
 # GUI stuff
 import tkinter
 from tkinter import ttk, messagebox
-from .components.buttonbox import ButtonBox
-from .components.enumlist import EnumList
+from ..components.buttonbox import ButtonBox
+from ..components.enumlist import EnumList
 
 # Time-zone data
 import zoneinfo
 
 # Custom dialogues and setup-specific widgets
-from .setup.location import LocationTable, LocationEditDialogue
-from .setup.division import DivisionTable, DivisionEditDialogue
+from .location import LocationTable, LocationEditDialogue
+from .division import DivisionTable, DivisionEditDialogue
 
-# Event type data and model
-from .model import (
+from ..model import (
     Division,
-    Event,
     Location,
     Stage,
     Competitor,
@@ -519,7 +517,8 @@ class EventSetupDialogue(object):
 if __name__ == "__main__":
     import logging
     import datetime
-    from .model.db import Database
+    from ..model.db import Database
+    from ..model import Event
 
     logging.basicConfig(level=logging.DEBUG)
 
