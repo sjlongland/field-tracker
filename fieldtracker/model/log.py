@@ -4,7 +4,6 @@ from enum import Enum
 
 from .entity import (
     Entity,
-    TextFieldSpec,
     IntFieldSpec,
     DateTimeFieldSpec,
     ForeignFieldSpec,
