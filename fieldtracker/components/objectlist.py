@@ -167,8 +167,6 @@ class ObjectList(ttk.Frame):
 
 # Example usage
 if __name__ == "__main__":
-    from enum import Enum
-
     print("Running ObjectList example")
     tk = tkinter.Tk()
 
