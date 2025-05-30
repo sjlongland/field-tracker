@@ -1,3 +1,11 @@
+[Find this project on codeberg](https://codeberg.org/sjlongland/field-tracker)
+
+As a result of Github's decision to force AI-generated issues with no opt-out,
+I am migrating personal projects of mine to Codeberg.  The project at Github
+will be archived.
+
+----
+
 # Work-in-progress field event tracker
 
 This is a crude event tracking application for horse endurance rides, bicycle
